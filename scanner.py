@@ -30,7 +30,7 @@ def main():
 def parse(line):
     tokens = []#list of tuples ('type':'content')
     buffer = ''#for storing between states 
-    stack = ''#for balancing parenthesis, braces..
+    stack = ''#for balancing parentheses, braces..
     state = 'undefined'#initial state, change to list, body, expression or ignore
     for l in line:
         if l == '\n': #ignore escape characters 
@@ -85,7 +85,7 @@ def classify(parsed, c = False):#list of tokens, bool is_class
             elif re.match('k?tie.*$', reg): #optional(keyword)-type-identifer-expression 
                 if c == True: member_data.append(obj)
                 else: variables.append(obj)
-            elif re.match('k?il.*b$', reg): #to catch class instantiation 
+            elif re.match('k?il.*b$', reg): #to catch class constructors 
                 member_functions.append(obj)
             obj = {}
             reg = ''
