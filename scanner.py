@@ -6,7 +6,7 @@ types = ["int", "bool", "char", "void", "float", "bool", "double",
 "std::vector<double>", "std::vector<std::string>", "std::vector<float>" ] #needs all cpp types 
 
 keywords = ["const", "static", "public:", "private:", "virtual"] 
-adts = ["class", "struct", "namespace"]
+adts = ["class", "struct"]
 discard = ["PYBIND11_MODULE", "PYBIND11_PLUGIN"]
 #types we want to save 
 variables = []
