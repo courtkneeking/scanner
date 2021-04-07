@@ -2,10 +2,12 @@ import sys
 import re 
 
 types = ["int", "bool", "char", "void", "float", "bool", "double", 
-"std::string", "std::vector<double>", ] #needs all cpp types 
-keywords = ["const", "static", "public:", "private:", "virtual"] 
-adts = ["class", "struct"]
+"std::string", 
+"std::vector<double>", "std::vector<std::string>", "std::vector<float>" ] #needs all cpp types 
 
+keywords = ["const", "static", "public:", "private:", "virtual"] 
+adts = ["class", "struct", "namespace"]
+discard = ["PYBIND11_MODULE", "PYBIND11_PLUGIN"]
 #types we want to save 
 variables = []
 functions = []
@@ -25,22 +27,44 @@ def main():
     for c in classes:
         parsed_c = parse(c['body'][1:-1])#create tokens inside class
         classify(parsed_c, True)
+    
 
 
+
+change_state = '({=;'
 def parse(line):
     tokens = []#list of tuples ('type':'content')
     buffer = ''#for storing between states 
-    stack = ''#for balancing parentheses, braces..
-    state = 'undefined'#initial state, change to list, body, expression or ignore
+    stack = ''#for balancing parenthesis, braces..
+    state = 'undefined'#initial state, change to list, body, expression 
+
+    ignore_stack = ''
+    ignore_bool = False
+
     for l in line:
+        if ignore_bool == True:
+            if ignore_stack.startswith('//') and l == '\n':#exit ignore state
+                ignore_bool = False
+                ignore_stack = ""
+            elif ignore_stack.endswith('*/'):
+                ignore_bool = False
+                ignore_stack = ""
+            else:
+                ignore_stack+=l
+                continue
+        elif buffer.endswith('//') or buffer.endswith('/*'):#start ignore state 
+            ignore_bool = True
+            ignore_stack = buffer[-2:]+l
+            buffer = buffer[:-2]
+            continue
         if l == '\n': #ignore escape characters 
-            if state == 'ignore': state = 'undefined'#for backslashes 
-            else: l = " "
+            l = " "
         if state == 'undefined':
-            if l == "(" or l == "{" or l == "=" or l == ";": #change state
-                if len(buffer) > 0 and buffer.isspace() == False:#empty buffer 
+            if l in change_state: #change state
+                if len(buffer) > 0:#empty buffer 
                     for word in buffer.split():#create tokens not of type list, body or expression
-                        if word in adts: tokens.append(('adt', word))
+                        if word in discard: continue
+                        elif word in adts: tokens.append(('adt', word))
                         elif word in types: tokens.append(('type', word))
                         elif word in keywords: tokens.append(('keyword', word))
                         elif re.match("^[A-Za-z0-9_&-]*$", word): tokens.append(('identifier', word))
@@ -49,21 +73,35 @@ def parse(line):
                 if l == '(': state = 'list' 
                 elif l == '{': state = 'body'
                 else: state = 'expression'
-            elif l == '/': state = 'ignore'
             else:
                 buffer+=l
-        if state == 'list' or state == 'body' or state == 'expression':
-            if l == ')' or l == '}':
+        if state == 'list':
+            if l == ')':
                 stack =stack[0:-1]
-            elif state == 'expression' and l == ';':
-                stack =stack[0:-1]
-            elif l == '(' or l == '{' or l == '=':
+            elif l == '(':
                 stack += l
             buffer+=l
             if len(stack)==0:#create tokens of type list, expression or body 
                 tokens.append((state, buffer))
                 state = 'undefined'
                 buffer = ''
+        elif state == 'body':
+            if l == '}':
+                stack =stack[0:-1]
+            elif l == '{':
+                stack += l
+            buffer+=l
+            if len(stack)==0:#create tokens of type list, expression or body 
+                tokens.append((state, buffer))
+                state = 'undefined'
+                buffer = ''
+        elif state == 'expression':
+            if l == ';':
+                tokens.append((state, buffer))
+                state = 'undefined'
+                buffer = ''
+            else: 
+                buffer+=l
     return tokens
 
 def classify(parsed, c = False):#list of tokens, bool is_class
@@ -85,7 +123,7 @@ def classify(parsed, c = False):#list of tokens, bool is_class
             elif re.match('k?tie.*$', reg): #optional(keyword)-type-identifer-expression 
                 if c == True: member_data.append(obj)
                 else: variables.append(obj)
-            elif re.match('k?il.*b$', reg): #to catch class constructors 
+            elif re.match('k?il.*b$', reg): #to catch class instantiation 
                 member_functions.append(obj)
             obj = {}
             reg = ''
